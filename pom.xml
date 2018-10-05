@@ -34,8 +34,8 @@
                     <arguments>
                         <argument>-classpath</argument>
                         <classpath/>
-                        <argument>-Xmx512m</argument>
-                        <argument>com.bennight.GeomBenchmark</argument>
+                        <argument>-Xmx2g</argument>
+                        <argument>com.gisdev01.GeomBenchmark</argument>
                     </arguments>
                 </configuration>
             </plugin>
@@ -107,7 +107,7 @@
 		<dependency>
 			<groupId>com.esri.geometry</groupId>
 			<artifactId>esri-geometry-api</artifactId>
-			<version>1.0</version>
+            <version>2.2.1</version>
 		</dependency>
 
 

@@ -31,44 +31,47 @@ import com.vividsolutions.jts.io.WKTReader;
 import com.vividsolutions.jts.io.WKTWriter;
 import com.vividsolutions.jts.simplify.DouglasPeuckerSimplifier;
 
+// Note: We use fully qualified class names from com.esri.core.geometry due to several name collisions with the above
+// JTS names (eg. Polygon, Point, etc.)
+
 
 public class GeomBenchmark {
 
 	// test shapefile can be downloaded here:
 	// https://www.census.gov/cgi-bin/geo/shapefiles/index.php (as of Oct. 2018)
-	private static String SHAPEFILE_COUNTIES_FILEPATH = "/tmp/tl_2018_us_county/tl_2018_us_county.shp";
+	private static String SHAPEFILE_COUNTIES_FILEPATH = "test/resources/tl_2018_us_county.shp";
 
 	private List<Polygon> polygons;
 	private List<Envelope> boxes;
 
 	private List<Envelope> clip_boxes; // for clips
 	private List<Polygon> ellipses; // for intersections
-	private List<Integer> ids; // for tracing
+	private List<Integer> ids;
 
 	private List<PreparedPolygon> ppolygons;
 	
-	private List<com.esri.core.geometry.Polygon> Epolygons;
-	private List<com.esri.core.geometry.Envelope> Eboxes;
+	private List<com.esri.core.geometry.Polygon> esriPolygons;
+	private List<com.esri.core.geometry.Envelope> esriEnvelopes;
 
-	private List<com.esri.core.geometry.Envelope2D> Eclip_boxes; // for clips
-	private List<com.esri.core.geometry.Polygon> Eellipses; // for intersections
-	private List<Integer> Eids; // for tracing
+	private List<com.esri.core.geometry.Envelope2D> esriEnvelopes2DClipBoxes; // for clips
+	private List<com.esri.core.geometry.Polygon> esriPolygonEllipses; // for intersections
+	private List<Integer> Eids;
 
-	private List<com.esri.core.geometry.Polygon> Eppolygons;
+	private List<com.esri.core.geometry.Polygon> esriPreparedPolys;
 
-	com.esri.core.geometry.OperatorFactoryLocal factory = com.esri.core.geometry.OperatorFactoryLocal.getInstance();
-	com.esri.core.geometry.OperatorImportFromWkt operatorImport = (com.esri.core.geometry.OperatorImportFromWkt) factory.getOperator(com.esri.core.geometry.Operator.Type.ImportFromWkt);
-	com.esri.core.geometry.OperatorExportToWkt operatorExport = (com.esri.core.geometry.OperatorExportToWkt) factory.getOperator(com.esri.core.geometry.Operator.Type.ExportToWkt);
-	com.esri.core.geometry.OperatorIntersection operatorIntersection = (com.esri.core.geometry.OperatorIntersection) factory.getOperator(com.esri.core.geometry.Operator.Type.Intersection);
-	com.esri.core.geometry.OperatorConvexHull operatorConvexHull = (com.esri.core.geometry.OperatorConvexHull) factory.getOperator(com.esri.core.geometry.Operator.Type.ConvexHull);
-	com.esri.core.geometry.OperatorClip operatorClip = (com.esri.core.geometry.OperatorClip) factory.getOperator(com.esri.core.geometry.Operator.Type.Clip);
-	com.esri.core.geometry.OperatorSimplify operatorSimplify = (com.esri.core.geometry.OperatorSimplify) factory.getOperator(com.esri.core.geometry.Operator.Type.Simplify);
-	com.esri.core.geometry.OperatorWithin operatorWithin = (com.esri.core.geometry.OperatorWithin) factory.getOperator(com.esri.core.geometry.Operator.Type.Within);
-	com.esri.core.geometry.OperatorContains operatorContains = (com.esri.core.geometry.OperatorContains) factory.getOperator(com.esri.core.geometry.Operator.Type.Contains);
-	com.esri.core.geometry.OperatorGeneralize operatorGeneralize = (com.esri.core.geometry.OperatorGeneralize) factory.getOperator(com.esri.core.geometry.Operator.Type.Generalize);
-	com.esri.core.geometry.SpatialReference sr = com.esri.core.geometry.SpatialReference.create(4269);
-	WKTWriter wkt = new WKTWriter();
-	WKTReader wktr = new WKTReader();
+    private com.esri.core.geometry.OperatorFactoryLocal factory = com.esri.core.geometry.OperatorFactoryLocal.getInstance();
+    private com.esri.core.geometry.OperatorImportFromWkt operatorImport = (com.esri.core.geometry.OperatorImportFromWkt) factory.getOperator(com.esri.core.geometry.Operator.Type.ImportFromWkt);
+    private com.esri.core.geometry.OperatorExportToWkt operatorExport = (com.esri.core.geometry.OperatorExportToWkt) factory.getOperator(com.esri.core.geometry.Operator.Type.ExportToWkt);
+    private com.esri.core.geometry.OperatorIntersection operatorIntersection = (com.esri.core.geometry.OperatorIntersection) factory.getOperator(com.esri.core.geometry.Operator.Type.Intersection);
+    private com.esri.core.geometry.OperatorConvexHull operatorConvexHull = (com.esri.core.geometry.OperatorConvexHull) factory.getOperator(com.esri.core.geometry.Operator.Type.ConvexHull);
+    private com.esri.core.geometry.OperatorClip operatorClip = (com.esri.core.geometry.OperatorClip) factory.getOperator(com.esri.core.geometry.Operator.Type.Clip);
+    private com.esri.core.geometry.OperatorSimplify operatorSimplify = (com.esri.core.geometry.OperatorSimplify) factory.getOperator(com.esri.core.geometry.Operator.Type.Simplify);
+    private com.esri.core.geometry.OperatorWithin operatorWithin = (com.esri.core.geometry.OperatorWithin) factory.getOperator(com.esri.core.geometry.Operator.Type.Within);
+    private com.esri.core.geometry.OperatorContains operatorContains = (com.esri.core.geometry.OperatorContains) factory.getOperator(com.esri.core.geometry.Operator.Type.Contains);
+    private com.esri.core.geometry.OperatorGeneralize operatorGeneralize = (com.esri.core.geometry.OperatorGeneralize) factory.getOperator(com.esri.core.geometry.Operator.Type.Generalize);
+    private com.esri.core.geometry.SpatialReference sr = com.esri.core.geometry.SpatialReference.create(4269);
+	private WKTWriter wkt = new WKTWriter();
+	private WKTReader wktr = new WKTReader();
 	private GeometryFactory geometryFactory;
 
 	// intersections/unions
@@ -78,14 +81,14 @@ public class GeomBenchmark {
 		polygons = new ArrayList<Polygon>();
 		boxes = new ArrayList<Envelope>();
 		clip_boxes = new ArrayList<Envelope>(); // for clips
-		ellipses = new ArrayList<Polygon>(); // for
+		ellipses = new ArrayList<Polygon>();
 		geometryFactory = new GeometryFactory();
 		ids = new ArrayList<Integer>();
 		
-		Epolygons = new ArrayList<com.esri.core.geometry.Polygon>();
-		Eboxes = new ArrayList<com.esri.core.geometry.Envelope>();
-		Eclip_boxes = new ArrayList<com.esri.core.geometry.Envelope2D>(); // for clips
-		Eellipses = new ArrayList<com.esri.core.geometry.Polygon>(); // for
+		esriPolygons = new ArrayList<com.esri.core.geometry.Polygon>();
+		esriEnvelopes = new ArrayList<com.esri.core.geometry.Envelope>();
+		esriEnvelopes2DClipBoxes = new ArrayList<com.esri.core.geometry.Envelope2D>(); // for clips
+		esriPolygonEllipses = new ArrayList<com.esri.core.geometry.Polygon>();
 		Eids = new ArrayList<Integer>();
 
 
@@ -105,10 +108,10 @@ public class GeomBenchmark {
 		ellipses.clear();
 		ids.clear();
 		
-		Epolygons.clear();
-		Eboxes.clear();
-		Eclip_boxes.clear();
-		Eellipses.clear();
+		esriPolygons.clear();
+		esriEnvelopes.clear();
+		esriEnvelopes2DClipBoxes.clear();
+		esriPolygonEllipses.clear();
 		Eids.clear();
 
 		geometryFactory = new GeometryFactory();
@@ -139,10 +142,10 @@ public class GeomBenchmark {
 		for (Polygon polygon : polygons) {
 			boxes.add(polygon.getEnvelopeInternal());
 			com.esri.core.geometry.Polygon p2 = JTStoESRIPoly(polygon);
-			Epolygons.add(p2);
+			esriPolygons.add(p2);
 			com.esri.core.geometry.Envelope e2 = new com.esri.core.geometry.Envelope();
 			p2.queryEnvelope(e2);
-			Eboxes.add(e2);
+			esriEnvelopes.add(e2);
 		}
 		
 		
@@ -183,7 +186,7 @@ public class GeomBenchmark {
 					Polygon ellipse = geometryFactory.createPolygon(lr, null);
 					ellipses.add(ellipse);
 					com.esri.core.geometry.Polygon e2 = JTStoESRIPoly(ellipse);
-					Eellipses.add(e2);
+					esriPolygonEllipses.add(e2);
 				}
 
 				if (Compare.MEASURE_CLIP) {
@@ -205,7 +208,7 @@ public class GeomBenchmark {
 					Envelope clipbox = new Envelope(x0, x1, y0, y1);
 					clip_boxes.add(clipbox);
 					com.esri.core.geometry.Envelope2D env = new com.esri.core.geometry.Envelope2D(x0, y0, x1, y1);
-					Eclip_boxes.add(env);
+					esriEnvelopes2DClipBoxes.add(env);
 				}
 			}
 		}
@@ -230,7 +233,7 @@ public class GeomBenchmark {
 			area = 0;
 			t0 = System.nanoTime();
 			for (int i = 0; i < Compare.AREA_COUNT; i++) {
-				for (com.esri.core.geometry.Polygon polygon : Epolygons) {
+				for (com.esri.core.geometry.Polygon polygon : esriPolygons) {
 					area += polygon.calculateArea2D();
 				}
 			}
@@ -275,7 +278,7 @@ public class GeomBenchmark {
 			//ESRI
 			area = 0.0;
 			t0 = System.nanoTime();
-			for (com.esri.core.geometry.Polygon polygon : Epolygons) {
+			for (com.esri.core.geometry.Polygon polygon : esriPolygons) {
 				com.esri.core.geometry.Polygon hull = (com.esri.core.geometry.Polygon) operatorConvexHull.execute(polygon,null);
 				if (Compare.HULL_AREA) {
 					area += Math.abs(hull.calculateArea2D());
@@ -315,8 +318,8 @@ public class GeomBenchmark {
 			area2 = 0;
 			for (int i = 0; i < Compare.OVERLAY_COUNT; i++) {
 				int k = 0;
-				Iterator<com.esri.core.geometry.Polygon> eit = Eellipses.iterator();
-				for (Iterator<com.esri.core.geometry.Polygon> pit = Epolygons.iterator(); pit.hasNext()&& eit.hasNext(); k++) {
+				Iterator<com.esri.core.geometry.Polygon> eit = esriPolygonEllipses.iterator();
+				for (Iterator<com.esri.core.geometry.Polygon> pit = esriPolygons.iterator(); pit.hasNext()&& eit.hasNext(); k++) {
 					com.esri.core.geometry.Polygon poly = pit.next();
 					com.esri.core.geometry.Polygon ellipse = eit.next();
 					if (Compare.OVERLAY_AREA) {
@@ -367,8 +370,8 @@ public class GeomBenchmark {
 			area2 = 0.0;
 			t0 = System.nanoTime();
 			for (int i = 0; i < Compare.CLIP_COUNT; i++) {
-				Iterator<com.esri.core.geometry.Envelope2D> bit = Eclip_boxes.iterator();
-				Iterator<com.esri.core.geometry.Polygon> pit = Epolygons.iterator();
+				Iterator<com.esri.core.geometry.Envelope2D> bit = esriEnvelopes2DClipBoxes.iterator();
+				Iterator<com.esri.core.geometry.Polygon> pit = esriPolygons.iterator();
 				for (int k = 0; pit.hasNext() && bit.hasNext(); k++) {
 					com.esri.core.geometry.Polygon poly = pit.next();
 					com.esri.core.geometry.Envelope2D clipenv = bit.next();
@@ -414,7 +417,7 @@ public class GeomBenchmark {
 			length1 = 0.0;
 			length2 = 0.0;
 			t0 = System.nanoTime();
-			for (com.esri.core.geometry.Polygon polygon : Epolygons) {
+			for (com.esri.core.geometry.Polygon polygon : esriPolygons) {
 				
 				//com.esri.core.geometry.Geometry simplegeom = operatorSimplify.execute(polygon, sr, false,null);
 				com.esri.core.geometry.Geometry simplegeom = operatorGeneralize.execute(polygon, Compare.SIMPLIFY_DISTANCE, false, null);
@@ -458,12 +461,12 @@ public class GeomBenchmark {
 			//ESRI
 			count = 0;
 			t0 = System.nanoTime();
-			for (int e = 0; e < Eboxes.size(); e++) {
-				com.esri.core.geometry.Envelope b = Eboxes.get(e);
+			for (int e = 0; e < esriEnvelopes.size(); e++) {
+				com.esri.core.geometry.Envelope b = esriEnvelopes.get(e);
 				
 				com.esri.core.geometry.Point p = b.getCenter();
-				Iterator<com.esri.core.geometry.Envelope> bit = Eboxes.iterator();
-				Iterator<com.esri.core.geometry.Polygon> pit = Epolygons.iterator();
+				Iterator<com.esri.core.geometry.Envelope> bit = esriEnvelopes.iterator();
+				Iterator<com.esri.core.geometry.Polygon> pit = esriPolygons.iterator();
 				for (int k = 0; pit.hasNext() && bit.hasNext(); k++) {
 					com.esri.core.geometry.Polygon poly = pit.next();
 					com.esri.core.geometry.Envelope box = bit.next();
@@ -507,15 +510,15 @@ public class GeomBenchmark {
 			//ESRI
 			count = 0;
 			List<com.esri.core.geometry.Point> Epoints = new ArrayList<com.esri.core.geometry.Point>(boxes.size());
-			for (int e = 0; e < Eboxes.size(); e++) {
-				com.esri.core.geometry.Envelope b = Eboxes.get(e);
+			for (int e = 0; e < esriEnvelopes.size(); e++) {
+				com.esri.core.geometry.Envelope b = esriEnvelopes.get(e);
 				com.esri.core.geometry.Point p = b.getCenter();
 				Epoints.add(p);
 			}
 			
 			t0 = System.nanoTime();
 			Iterator<com.esri.core.geometry.Point> EpointIt = Epoints.iterator();
-			Iterator<com.esri.core.geometry.Polygon> Epit = Epolygons.iterator();
+			Iterator<com.esri.core.geometry.Polygon> Epit = esriPolygons.iterator();
 			for (int k = 0; Epit.hasNext() && EpointIt.hasNext(); k++) {
 				com.esri.core.geometry.Polygon poly = Epit.next();
 				com.esri.core.geometry.Point p = EpointIt.next();
@@ -669,7 +672,7 @@ public class GeomBenchmark {
 				}
 			}
 
-			System.out.println("Total Area" + totalArea);
+			System.out.println("Total Area: " + totalArea);
 
 		} catch (Exception ex) {
 			ex.printStackTrace();
