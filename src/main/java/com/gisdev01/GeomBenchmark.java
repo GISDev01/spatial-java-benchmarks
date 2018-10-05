@@ -41,11 +41,11 @@ public class GeomBenchmark {
 	// https://www.census.gov/cgi-bin/geo/shapefiles/index.php (as of Oct. 2018)
 	private static String SHAPEFILE_COUNTIES_FILEPATH = "test/resources/tl_2018_us_county.shp";
 
-	private List<Polygon> polygons;
-	private List<Envelope> boxes;
+	private List<Polygon> jtsPolygons;
+	private List<Envelope> jtsEnvelopes;
 
-	private List<Envelope> clip_boxes; // for clips
-	private List<Polygon> ellipses; // for intersections
+	private List<Envelope> jtsClipBoxes;
+	private List<Polygon> ellipses;
 	private List<Integer> ids;
 
 	private List<PreparedPolygon> ppolygons;
@@ -55,7 +55,7 @@ public class GeomBenchmark {
 
 	private List<com.esri.core.geometry.Envelope2D> esriEnvelopes2DClipBoxes; // for clips
 	private List<com.esri.core.geometry.Polygon> esriPolygonEllipses; // for intersections
-	private List<Integer> Eids;
+	private List<Integer> esriIds;
 
 	private List<com.esri.core.geometry.Polygon> esriPreparedPolys;
 
@@ -74,26 +74,33 @@ public class GeomBenchmark {
 	private WKTReader wktr = new WKTReader();
 	private GeometryFactory geometryFactory;
 
-	// intersections/unions
 
-	public GeomBenchmark() {
+    public static void main(String[] args) throws Exception {
+        GeomBenchmark geomBenchmark = new GeomBenchmark();
+        File shapefileFile = new File(SHAPEFILE_COUNTIES_FILEPATH);
+        geomBenchmark.prepare(shapefileFile);
+        geomBenchmark.runchecks();
+    }
+
+	private GeomBenchmark() {
 		super();
-		polygons = new ArrayList<Polygon>();
-		boxes = new ArrayList<Envelope>();
-		clip_boxes = new ArrayList<Envelope>(); // for clips
+
+		// jts objects
+		jtsPolygons = new ArrayList<Polygon>();
+		jtsEnvelopes = new ArrayList<Envelope>();
+		jtsClipBoxes = new ArrayList<Envelope>();
 		ellipses = new ArrayList<Polygon>();
 		geometryFactory = new GeometryFactory();
 		ids = new ArrayList<Integer>();
-		
+
+		// esri objects
 		esriPolygons = new ArrayList<com.esri.core.geometry.Polygon>();
 		esriEnvelopes = new ArrayList<com.esri.core.geometry.Envelope>();
-		esriEnvelopes2DClipBoxes = new ArrayList<com.esri.core.geometry.Envelope2D>(); // for clips
+		esriEnvelopes2DClipBoxes = new ArrayList<com.esri.core.geometry.Envelope2D>();
 		esriPolygonEllipses = new ArrayList<com.esri.core.geometry.Polygon>();
-		Eids = new ArrayList<Integer>();
-
+		esriIds = new ArrayList<Integer>();
 
 	}
-
 
 	
 	private com.esri.core.geometry.Polygon JTStoESRIPoly(Polygon jtsGeom){
@@ -102,9 +109,9 @@ public class GeomBenchmark {
 	}
 	
 	public void prepare(File shapefile) {
-		polygons.clear();
-		boxes.clear();
-		clip_boxes.clear();
+		jtsPolygons.clear();
+		jtsEnvelopes.clear();
+		jtsClipBoxes.clear();
 		ellipses.clear();
 		ids.clear();
 		
@@ -112,35 +119,33 @@ public class GeomBenchmark {
 		esriEnvelopes.clear();
 		esriEnvelopes2DClipBoxes.clear();
 		esriPolygonEllipses.clear();
-		Eids.clear();
+		esriIds.clear();
 
 		geometryFactory = new GeometryFactory();
 
 		try {
-			// load all shapes from shapefile into polygons
-			read_shapefile(shapefile, polygons, ids);
+			// load all shapes from shapefile into jtsPolygons
+			readShapefile(shapefile, jtsPolygons, ids);
 
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
 			System.exit(1);
 		}
 
-		// ////////////////////////////////////////////////////////////////
-		ppolygons = new ArrayList<PreparedPolygon>(polygons.size());
+		ppolygons = new ArrayList<PreparedPolygon>(jtsPolygons.size());
 		
 
-		for (Polygon polygon : polygons) {
+		for (Polygon polygon : jtsPolygons) {
 			PreparedPolygon prepoly = new PreparedPolygon(polygon);
 			ppolygons.add(prepoly);
 			if (prepoly.contains(polygon.getCentroid())) {
 				// needed to cache it
 			}
 		}
-		// ////////////////////////////////////////////////////////////////
 
 		// Create envelopes
-		for (Polygon polygon : polygons) {
-			boxes.add(polygon.getEnvelopeInternal());
+		for (Polygon polygon : jtsPolygons) {
+			jtsEnvelopes.add(polygon.getEnvelopeInternal());
 			com.esri.core.geometry.Polygon p2 = JTStoESRIPoly(polygon);
 			esriPolygons.add(p2);
 			com.esri.core.geometry.Envelope e2 = new com.esri.core.geometry.Envelope();
@@ -152,7 +157,7 @@ public class GeomBenchmark {
 		// Create the star-ellipses for intersections later on
 		if (Compare.MEASURE_OVERLAY || Compare.MEASURE_CLIP) {
 			int k = 0;
-			for (Envelope box : boxes) {
+			for (Envelope box : jtsEnvelopes) {
 				k++;
 
 				double cx = box.centre().x;
@@ -206,7 +211,7 @@ public class GeomBenchmark {
 					double y1 = (cy + b * Math.cos(angle2));
 
 					Envelope clipbox = new Envelope(x0, x1, y0, y1);
-					clip_boxes.add(clipbox);
+					jtsClipBoxes.add(clipbox);
 					com.esri.core.geometry.Envelope2D env = new com.esri.core.geometry.Envelope2D(x0, y0, x1, y1);
 					esriEnvelopes2DClipBoxes.add(env);
 				}
@@ -222,12 +227,12 @@ public class GeomBenchmark {
 			double area = 0;
 			long t0 = System.nanoTime();
 			for (int i = 0; i < Compare.AREA_COUNT; i++) {
-				for (Polygon polygon : polygons) {
+				for (Polygon polygon : jtsPolygons) {
 					area += polygon.getArea();
 				}
 			}
 			long t1 = System.nanoTime();
-			Compare.report_area("JTS", t1 - t0, polygons.size(), area);
+			Compare.report_area("JTS", t1 - t0, jtsPolygons.size(), area);
 			
 			//ESRI
 			area = 0;
@@ -238,7 +243,7 @@ public class GeomBenchmark {
 				}
 			}
 			t1 = System.nanoTime();
-			Compare.report_area("ESRI", t1 - t0, polygons.size(), area);
+			Compare.report_area("ESRI", t1 - t0, jtsPolygons.size(), area);
 		}
 
 		if (Compare.MEASURE_CENTROID) {
@@ -247,14 +252,14 @@ public class GeomBenchmark {
 			double sum_x = 0, sum_y = 0;
 			long t0 = System.nanoTime();
 			for (int i = 0; i < Compare.CENTROID_COUNT; i++) {
-				for (Polygon polygon : polygons) {
+				for (Polygon polygon : jtsPolygons) {
 					Point centroid = polygon.getCentroid();
 					sum_x += centroid.getX();
 					sum_y += centroid.getY();
 				}
 			}
 			long t1 = System.nanoTime();
-			Compare.report_centroid("JTS", t1 - t0, polygons.size(), sum_x, sum_y);
+			Compare.report_centroid("JTS", t1 - t0, jtsPolygons.size(), sum_x, sum_y);
 			
 			//ESRI
 			Compare.report_centroid("ESRI - UNSUPPORTED", -1L, -1, -1D, -1D);
@@ -266,14 +271,14 @@ public class GeomBenchmark {
 			//JTS
 			double area = 0.0;
 			long t0 = System.nanoTime();
-			for (Polygon polygon : polygons) {
+			for (Polygon polygon : jtsPolygons) {
 				Geometry hull = polygon.convexHull();
 				if (Compare.HULL_AREA) {
 					area += Math.abs(hull.getArea());
 				}
 			}
 			long t1 = System.nanoTime();
-			Compare.report_hull("JTS", t1 - t0, polygons.size(), area);
+			Compare.report_hull("JTS", t1 - t0, jtsPolygons.size(), area);
 			
 			//ESRI
 			area = 0.0;
@@ -285,7 +290,7 @@ public class GeomBenchmark {
 				}
 			}
 			t1 = System.nanoTime();
-			Compare.report_hull("ESRI", t1 - t0, polygons.size(), area);
+			Compare.report_hull("ESRI", t1 - t0, jtsPolygons.size(), area);
 		}
 
 		if (Compare.MEASURE_OVERLAY) {
@@ -296,7 +301,7 @@ public class GeomBenchmark {
 			for (int i = 0; i < Compare.OVERLAY_COUNT; i++) {
 				int k = 0;
 				Iterator<Polygon> eit = ellipses.iterator();
-				for (Iterator<Polygon> pit = polygons.iterator(); pit.hasNext()	&& eit.hasNext(); k++) {
+				for (Iterator<Polygon> pit = jtsPolygons.iterator(); pit.hasNext()	&& eit.hasNext(); k++) {
 					Polygon poly = pit.next();
 					Polygon ellipse = eit.next();
 					if (Compare.OVERLAY_AREA) {
@@ -309,7 +314,7 @@ public class GeomBenchmark {
 				}
 			}
 			long t1 = System.nanoTime();
-			Compare.report_overlay("JTS", t1 - t0, polygons.size(), area1, area2);
+			Compare.report_overlay("JTS", t1 - t0, jtsPolygons.size(), area1, area2);
 			
 			
 			//ESRI
@@ -335,7 +340,7 @@ public class GeomBenchmark {
 				}
 			}
 			t1 = System.nanoTime();
-			Compare.report_overlay("ESRI", t1 - t0, polygons.size(), area1, area2);
+			Compare.report_overlay("ESRI", t1 - t0, jtsPolygons.size(), area1, area2);
 			
 		}
 
@@ -346,8 +351,8 @@ public class GeomBenchmark {
 			double area1 = 0.0, area2 = 0.0;
 			long t0 = System.nanoTime();
 			for (int i = 0; i < Compare.CLIP_COUNT; i++) {
-				Iterator<Envelope> bit = clip_boxes.iterator();
-				Iterator<Polygon> pit = polygons.iterator();
+				Iterator<Envelope> bit = jtsClipBoxes.iterator();
+				Iterator<Polygon> pit = jtsPolygons.iterator();
 				for (int k = 0; pit.hasNext() && bit.hasNext(); k++) {
 					Polygon poly = pit.next();
 					Envelope clipenv = bit.next();
@@ -362,7 +367,7 @@ public class GeomBenchmark {
 				}
 			}
 			long t1 = System.nanoTime();
-			Compare.report_clip("JTS", t1 - t0, polygons.size(), area1, area2);
+			Compare.report_clip("JTS", t1 - t0, jtsPolygons.size(), area1, area2);
 			
 			//ESRI
 			first = true;
@@ -388,7 +393,7 @@ public class GeomBenchmark {
 				}
 			}
 			t1 = System.nanoTime();
-			Compare.report_clip("ESRI", t1 - t0, polygons.size(), area1, area2);
+			Compare.report_clip("ESRI", t1 - t0, jtsPolygons.size(), area1, area2);
 		}
 
 		if (Compare.MEASURE_SIMPLIFY) {
@@ -397,7 +402,7 @@ public class GeomBenchmark {
 			int count1 = 0, count2 = 0;
 			double length1 = 0.0, length2 = 0.0;
 			long t0 = System.nanoTime();
-			for (Polygon polygon : polygons) {
+			for (Polygon polygon : jtsPolygons) {
 				Geometry simplegeom = DouglasPeuckerSimplifier.simplify(
 						polygon, Compare.SIMPLIFY_DISTANCE);
 				count1 += polygon.getNumPoints();
@@ -409,7 +414,7 @@ public class GeomBenchmark {
 
 			}
 			long t1 = System.nanoTime();
-			Compare.report_simplify("JTS", t1 - t0, polygons.size(), length1, length2,	count1, count2);
+			Compare.report_simplify("JTS", t1 - t0, jtsPolygons.size(), length1, length2,	count1, count2);
 			
 			//ESRI
 			count1 = 0;
@@ -430,7 +435,7 @@ public class GeomBenchmark {
 
 			}
 			t1 = System.nanoTime();
-			Compare.report_simplify("ESRI", t1 - t0, polygons.size(), length1, length2,	count1, count2);
+			Compare.report_simplify("ESRI", t1 - t0, jtsPolygons.size(), length1, length2,	count1, count2);
 
 		}
 
@@ -440,12 +445,12 @@ public class GeomBenchmark {
 			//JTS
 			int count = 0;
 			long t0 = System.nanoTime();
-			for (int e = 0; e < boxes.size(); e++) {
-				Envelope b = boxes.get(e);
+			for (int e = 0; e < jtsEnvelopes.size(); e++) {
+				Envelope b = jtsEnvelopes.get(e);
 				Coordinate c = b.centre();
 				Point p = geometryFactory.createPoint(c);
-				Iterator<Envelope> bit = boxes.iterator();
-				Iterator<Polygon> pit = polygons.iterator();
+				Iterator<Envelope> bit = jtsEnvelopes.iterator();
+				Iterator<Polygon> pit = jtsPolygons.iterator();
 				for (int k = 0; pit.hasNext() && bit.hasNext(); k++) {
 					Polygon poly = pit.next();
 					Envelope box = bit.next();
@@ -455,7 +460,7 @@ public class GeomBenchmark {
 				}
 			}
 			long t1 = System.nanoTime();
-			Compare.report_within("JTS", t1 - t0, polygons.size(), count, -1);
+			Compare.report_within("JTS", t1 - t0, jtsPolygons.size(), count, -1);
 			
 			
 			//ESRI
@@ -476,7 +481,7 @@ public class GeomBenchmark {
 				}
 			}
 			t1 = System.nanoTime();
-			Compare.report_within("ESRI", t1 - t0, polygons.size(), count, -1);
+			Compare.report_within("ESRI", t1 - t0, jtsPolygons.size(), count, -1);
 		}
 
 
@@ -484,16 +489,16 @@ public class GeomBenchmark {
 			System.out.println("");
 			//JTS
 			int count = 0;
-			List<Point> points = new ArrayList<Point>(boxes.size());
-			for (int e = 0; e < boxes.size(); e++) {
-				Envelope b = boxes.get(e);
+			List<Point> points = new ArrayList<Point>(jtsEnvelopes.size());
+			for (int e = 0; e < jtsEnvelopes.size(); e++) {
+				Envelope b = jtsEnvelopes.get(e);
 				Coordinate c = b.centre();
 				Point p = geometryFactory.createPoint(c);
 				points.add(p);
 			}
 			long t0 = System.nanoTime();
 			Iterator<Point> pointIt = points.iterator();
-			Iterator<Polygon> pit = polygons.iterator();
+			Iterator<Polygon> pit = jtsPolygons.iterator();
 			for (int k = 0; pit.hasNext() && pointIt.hasNext(); k++) {
 				Polygon poly = pit.next();
 				Point p = pointIt.next();
@@ -502,14 +507,14 @@ public class GeomBenchmark {
 				}
 			}
 			long t1 = System.nanoTime();
-			Compare.report_contains("JTS", t1 - t0, polygons.size(), count, -1);
+			Compare.report_contains("JTS", t1 - t0, jtsPolygons.size(), count, -1);
 			
 			
 			
 			
 			//ESRI
 			count = 0;
-			List<com.esri.core.geometry.Point> Epoints = new ArrayList<com.esri.core.geometry.Point>(boxes.size());
+			List<com.esri.core.geometry.Point> Epoints = new ArrayList<com.esri.core.geometry.Point>(jtsEnvelopes.size());
 			for (int e = 0; e < esriEnvelopes.size(); e++) {
 				com.esri.core.geometry.Envelope b = esriEnvelopes.get(e);
 				com.esri.core.geometry.Point p = b.getCenter();
@@ -527,7 +532,7 @@ public class GeomBenchmark {
 				}
 			}
 			t1 = System.nanoTime();
-			Compare.report_contains("ESRI", t1 - t0, polygons.size(), count, -1);
+			Compare.report_contains("ESRI", t1 - t0, jtsPolygons.size(), count, -1);
 
 		}
 		
@@ -564,19 +569,11 @@ public class GeomBenchmark {
 		
 	}
 
-	public static void main(String[] args) throws Exception {
-		GeomBenchmark c = new GeomBenchmark();
-		File file = new File(SHAPEFILE_COUNTIES_FILEPATH);
-		c.prepare(file);
-		// wait
-		c.runchecks();
-	}
-
-	public static void read_shapefile(File file, List<Polygon> polygons,
-			List<Integer> ids) {
+	private static void readShapefile(File file, List<Polygon> polygons,
+                                      List<Integer> ids) {
 		try {
 			/*
-			 * Attmpt to find a GeoTools DataStore that can handle the shapefile
+			 * Attempt to find a GeoTools DataStore that can handle the shapefile
 			 */
 			Map<String, Serializable> connectParameters = new HashMap<String, Serializable>();
 
@@ -586,8 +583,7 @@ public class GeomBenchmark {
 			DataStore dataStore = DataStoreFinder
 					.getDataStore(connectParameters);
 			if (dataStore == null) {
-				System.out.println("No DataStore found to handle"
-						+ file.getPath());
+				System.out.println("No DataStore found to handle" + file.getPath());
 				System.exit(1);
 			}
 
@@ -627,7 +623,7 @@ public class GeomBenchmark {
 					Geometry geometry = (Geometry) feature.getDefaultGeometry();
 					// TODO validate polygon?
 
-					// Process only polygons, and from them only single-polygons
+					// Process only jtsPolygons, and from them only single-jtsPolygons
 					// without holes
 					Polygon polygon = null;
 					if (geometry instanceof Polygon) {
