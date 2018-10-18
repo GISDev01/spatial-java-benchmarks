@@ -53,8 +53,8 @@ public class GeomBenchmark {
 	private List<com.esri.core.geometry.Polygon> esriPolygons;
 	private List<com.esri.core.geometry.Envelope> esriEnvelopes;
 
-	private List<com.esri.core.geometry.Envelope2D> esriEnvelopes2DClipBoxes; // for clips
-	private List<com.esri.core.geometry.Polygon> esriPolygonEllipses; // for intersections
+	private List<com.esri.core.geometry.Envelope2D> esriEnvelopes2DClipBoxes;
+	private List<com.esri.core.geometry.Polygon> esriPolygonEllipses;
 	private List<Integer> esriIds;
 
 	private List<com.esri.core.geometry.Polygon> esriPreparedPolys;
@@ -70,8 +70,8 @@ public class GeomBenchmark {
     private com.esri.core.geometry.OperatorContains operatorContains = (com.esri.core.geometry.OperatorContains) factory.getOperator(com.esri.core.geometry.Operator.Type.Contains);
     private com.esri.core.geometry.OperatorGeneralize operatorGeneralize = (com.esri.core.geometry.OperatorGeneralize) factory.getOperator(com.esri.core.geometry.Operator.Type.Generalize);
     private com.esri.core.geometry.SpatialReference sr = com.esri.core.geometry.SpatialReference.create(4269);
-	private WKTWriter wkt = new WKTWriter();
-	private WKTReader wktr = new WKTReader();
+	private WKTWriter jtsWktWriter = new WKTWriter();
+	private WKTReader jtsWktReader = new WKTReader();
 	private GeometryFactory geometryFactory;
 
 
@@ -104,11 +104,11 @@ public class GeomBenchmark {
 
 	
 	private com.esri.core.geometry.Polygon JTStoESRIPoly(Polygon jtsGeom){
-		String wktP = wkt.write(jtsGeom);
-		return (com.esri.core.geometry.Polygon) operatorImport.execute(0, com.esri.core.geometry.Geometry.Type.Polygon , wktP, null);
+        String wktPolyForEsriToIngest = jtsWktWriter.write(jtsGeom);
+		return (com.esri.core.geometry.Polygon) operatorImport.execute(0, com.esri.core.geometry.Geometry.Type.Polygon , wktPolyForEsriToIngest, null);
 	}
 	
-	public void prepare(File shapefile) {
+	private void prepare(File shapefile) {
 		jtsPolygons.clear();
 		jtsEnvelopes.clear();
 		jtsClipBoxes.clear();
@@ -546,8 +546,8 @@ public class GeomBenchmark {
 		Geometry gi1 = null;
 		Geometry gi2 = null;
 		try {
-			gi1 = wktr.read(wkt1);
-		    gi2 = wktr.read(wkt2);
+			gi1 = jtsWktReader.read(wkt1);
+		    gi2 = jtsWktReader.read(wkt2);
 		} catch (ParseException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -556,7 +556,7 @@ public class GeomBenchmark {
 		System.out.println("");
 		System.out.println("TEST of the intersction of LINESTRING(0 0, 5 3) & LINESTRING(0 0, 1.2 0.72)");
 		System.out.println("Actual value is LINESTRING(0 0, 1.2 0.72) - but issues occur due to finite precision - checks robustness");
-		System.out.println("JTS Intersection: " + wkt.writeFormatted(gi1.intersection(gi2)));
+		System.out.println("JTS Intersection: " + jtsWktWriter.writeFormatted(gi1.intersection(gi2)));
 		
 		//ESRI
 		com.esri.core.geometry.Geometry Egi1 = (com.esri.core.geometry.Geometry) operatorImport.execute(0, com.esri.core.geometry.Geometry.Type.Unknown , wkt1, null);
@@ -569,21 +569,20 @@ public class GeomBenchmark {
 		
 	}
 
-	private static void readShapefile(File file, List<Polygon> polygons,
-                                      List<Integer> ids) {
+	private static void readShapefile(File inputShpFile, List<Polygon> polygons, List<Integer> ids) {
 		try {
 			/*
 			 * Attempt to find a GeoTools DataStore that can handle the shapefile
 			 */
 			Map<String, Serializable> connectParameters = new HashMap<String, Serializable>();
 
-			connectParameters.put("url", file.toURI().toURL());
+			connectParameters.put("url", inputShpFile.toURI().toURL());
 			connectParameters.put("create spatial index", false);
 
 			DataStore dataStore = DataStoreFinder
 					.getDataStore(connectParameters);
 			if (dataStore == null) {
-				System.out.println("No DataStore found to handle" + file.getPath());
+				System.out.println("No DataStore found to handle" + inputShpFile.getPath());
 				System.exit(1);
 			}
 
@@ -594,28 +593,27 @@ public class GeomBenchmark {
 			String[] typeNames = dataStore.getTypeNames();
 			String typeName = typeNames[0];
 
-			System.out.println("Reading content " + typeName);
+			System.out.println("Reading features from shapefile: " + typeName);
 
 			/*
 			 * Iterate through the features, collecting some spatial data (line
 			 * or boundary length) on each one
 			 */
 			FeatureSource<SimpleFeatureType, SimpleFeature> featureSource;
-			FeatureCollection<SimpleFeatureType, SimpleFeature> collection;
-			FeatureIterator<SimpleFeature> iterator;
+			FeatureCollection<SimpleFeatureType, SimpleFeature> featureCollection;
+			FeatureIterator<SimpleFeature> simpleFeatureFeatureIterator;
 
 			featureSource = dataStore.getFeatureSource(typeName);
-			collection = featureSource.getFeatures();
-			iterator = collection.features();
+			featureCollection = featureSource.getFeatures();
+			simpleFeatureFeatureIterator = featureCollection.features();
 
 			int i = 0;
 			double totalArea = 0.0;
 			try {
-				while (iterator.hasNext()) {
-					SimpleFeature feature = iterator.next();
+				while (simpleFeatureFeatureIterator.hasNext()) {
+					SimpleFeature feature = simpleFeatureFeatureIterator.next();
 
 					i++;
-					// System.out.println(i+"  :"+feature.getID());
 					/*
 					 * The spatial portion of the feature is represented by a
 					 * Geometry object
@@ -663,8 +661,8 @@ public class GeomBenchmark {
 				 * You MUST explicitly close the feature iterator otherwise
 				 * terrible things will happen !!!
 				 */
-				if (iterator != null) {
-					iterator.close();
+				if (simpleFeatureFeatureIterator != null) {
+					simpleFeatureFeatureIterator.close();
 				}
 			}
 
